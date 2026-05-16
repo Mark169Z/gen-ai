@@ -11,21 +11,17 @@ import type {
   UploadProps,
 } from "antd";
 
-import { message, Upload } from "antd";
+import { Carousel, message, Upload } from "antd";
 
 const { Dragger } = Upload;
 
 export default function Home() {
-  const glyphs = [
-    "A",
-    "B",
-    "C",
-    "D",
-    "E",
-    "F",
-    "G",
-    "H",
-  ];
+
+  // -----------------------------------------
+  // Source of truth
+  // -----------------------------------------
+
+  const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
   const [messageApi, contextHolder] =
     message.useMessage();
@@ -40,8 +36,14 @@ export default function Home() {
   const [generatedImages, setGeneratedImages] =
     useState<Record<string, string>>({});
 
+  // -----------------------------------------
+  // Transfer
+  // -----------------------------------------
+
   const handleTransfer = async () => {
+
     if (!fileList.length) {
+
       messageApi.error(
         "Please upload files first"
       );
@@ -50,22 +52,25 @@ export default function Home() {
     }
 
     try {
+
       setLoading(true);
 
       const formData = new FormData();
 
-      // characters to generate
+      // characters
       formData.append(
         "characters",
-        "ABCDEFGH"
+        characters
       );
 
-      // upload style images
+      // style refs
       fileList.forEach((file) => {
+
         formData.append(
           "style_files",
           file.originFileObj as File
         );
+
       });
 
       const response = await fetch(
@@ -77,9 +82,11 @@ export default function Home() {
       );
 
       if (!response.ok) {
+
         throw new Error(
           "Transfer failed"
         );
+
       }
 
       const data = await response.json();
@@ -91,17 +98,26 @@ export default function Home() {
       );
 
     } catch (error) {
+
       console.error(error);
 
       messageApi.error(
         "Transfer failed"
       );
+
     } finally {
+
       setLoading(false);
+
     }
   };
 
+  // -----------------------------------------
+  // Upload props
+  // -----------------------------------------
+
   const props: UploadProps = {
+
     name: "style_files",
 
     multiple: true,
@@ -109,6 +125,7 @@ export default function Home() {
     listType: "picture",
 
     beforeUpload(file) {
+
       const previewUrl =
         URL.createObjectURL(file);
 
@@ -117,8 +134,6 @@ export default function Home() {
         name: file.name,
         status: "done",
         originFileObj: file,
-
-        // preview image
         thumbUrl: previewUrl,
       };
 
@@ -136,12 +151,14 @@ export default function Home() {
     },
 
     onRemove(file) {
+
       setFileList((prev) =>
         prev.filter(
           (item) =>
             item.uid !== file.uid
         )
       );
+
     },
 
     fileList,
@@ -149,6 +166,7 @@ export default function Home() {
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-black text-zinc-200">
+
       {contextHolder}
 
       {/* Ambient Glow */}
@@ -157,6 +175,7 @@ export default function Home() {
       <div className="absolute bottom-1/4 right-1/4 h-[500px] w-[500px] rounded-full bg-gradient-to-r from-purple-300 to-blue-300 opacity-5 blur-[80px]" />
 
       <section className="relative z-10 mx-auto max-w-7xl px-10 pb-20 pt-36">
+
         <div className="mx-auto max-w-4xl rounded-3xl border border-white/10 bg-white/[0.03] p-8 backdrop-blur-xl">
 
           {/* Upload */}
@@ -180,8 +199,9 @@ export default function Home() {
             </p>
           </Dragger>
 
-          {/* Transfer Button */}
+          {/* Generate Button */}
           <div className="mt-6">
+
             <button
               onClick={handleTransfer}
               disabled={
@@ -204,51 +224,94 @@ export default function Home() {
               <Download className="h-5 w-5" />
 
               {loading
-                ? "Transferring..."
-                : "Transfer Files"}
+                ? "Generating..."
+                : "Generate Font"}
             </button>
+
           </div>
 
           {/* Preview */}
           {Object.keys(generatedImages)
             .length > 0 && (
+
             <div className="mt-10 rounded-2xl border border-white/5 bg-black/40 p-6">
 
-              {/* Glyph Grid */}
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                {glyphs.map((glyph) => (
-                  <div
-                    key={glyph}
-                    className="
-                      flex aspect-square items-center justify-center
-                      overflow-hidden
-                      rounded-xl border border-white/5
-                      bg-white/[0.03]
-                      transition hover:bg-white/10
-                    "
-                  >
-                    {generatedImages[
-                      glyph
-                    ] && (
-                      <img
-                        src={`data:image/png;base64,${generatedImages[glyph]}`}
-                        alt={glyph}
-                        className="
-                          h-full w-full object-contain p-3
-                          invert brightness-200 contrast-200
-                          mix-blend-screen
-                        "
-                      />
-                    )}
-                  </div>
-                ))}
-              </div>
+              <Carousel arrows infinite={false} draggable={true}>
+
+                {(() => {
+                  const entries = Object.entries(
+                    generatedImages
+                  );
+
+                  const slides = [] as Array<
+                    typeof entries
+                  >;
+
+                  for (
+                    let i = 0;
+                    i < entries.length;
+                    i += 8
+                  ) {
+                    slides.push(
+                      entries.slice(i, i + 8)
+                    );
+                  }
+
+                  return slides.map(
+                    (slideEntries, index) => (
+
+                      <div key={`slide-${index}`}>
+
+                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+
+                          {slideEntries.map(
+                            ([glyph, image]) => (
+
+                              <div
+                                key={glyph}
+                                className="
+                                  flex aspect-square items-center justify-center
+                                  overflow-hidden
+                                  rounded-xl border border-white/5
+                                  bg-white/[0.03]
+                                  transition hover:bg-white/10
+                                  select-none
+                                "
+                              >
+
+                                <img
+                                  src={`data:image/png;base64,${image}`}
+                                  alt={glyph}
+                                  className="
+                                    h-full w-full object-contain p-3
+                                    invert brightness-200 contrast-200
+                                    mix-blend-screen
+                                  "
+                                />
+
+                              </div>
+
+                            )
+                          )}
+
+                        </div>
+
+                      </div>
+
+                    )
+                  );
+                })()}
+
+              </Carousel>
 
             </div>
+
           )}
 
         </div>
+
       </section>
+
     </main>
   );
 }

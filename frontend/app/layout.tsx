@@ -31,6 +31,8 @@ export default function RootLayout({
               colorPrimary: '#DAB2FF',
               colorText: '#FFFFFF',
               colorIcon: '#D8B4FE',
+              colorBgBase: "#080808",
+              colorBorder: "#71717a",
             },
           }}
         >
