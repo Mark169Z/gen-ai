@@ -477,36 +477,53 @@ export default function Home() {
 
                   <div className="flex items-center justify-center">
 
-                    <textarea
-                      value={previewText}
-                      onChange={(e) =>
+                    <div
+                      contentEditable
+                      suppressContentEditableWarning
+                      onInput={(e) =>
                         setPreviewText(
-                          e.target.value
+                          e.currentTarget.innerText.toUpperCase()
                         )
                       }
-                      placeholder="Type something..."
                       className="
-                        h-[120px]
-                        w-full
-                        rounded-xl
-                        border border-white/10
-                        bg-black/60
-                        p-6
-                        text-9xl
-                        leading-relaxed
-                        text-white
-                        outline-none
-                        transition
-                        placeholder:text-zinc-600
-                        focus:border-purple-300/30
-                      "
+                      min-h-[6.5rem]
+                      w-full
+                      rounded-xl
+                      border border-white/10
+                      bg-black/60
+                      p-6
+
+                      text-[40px]
+                      leading-none
+
+                      text-white
+                      outline-none
+                      transition
+
+                      focus:border-purple-300/30
+
+                      uppercase
+                    "
                       style={{
-                        resize: "none",
-                        fontFamily:
-                          generatedFont ||
-                          "sans-serif",
+                        fontFamily: "GeneratedFont",
+
+                        fontStyle: "normal",
+
+                        fontWeight: 400,
+
+                        fontSynthesis: "none",
+
+                        WebkitFontSmoothing:
+                          "antialiased",
+
+                        MozOsxFontSmoothing:
+                          "grayscale",
+
+                        overflowWrap: "break-word",
                       }}
-                    />
+                    >
+                      {previewText}
+                    </div>
 
                   </div>
 
@@ -514,16 +531,16 @@ export default function Home() {
                   <button
                     onClick={handleExportTTF}
                     className="
-                      mt-5
-                      flex w-full items-center justify-center gap-2
-                      rounded-xl
-                      border border-purple-300/20
-                      bg-purple-300/10
-                      px-6 py-4
-                      text-lg font-bold text-purple-300
-                      transition
-                      hover:bg-purple-300/20
-                    "
+                    mt-5
+                    flex w-full items-center justify-center gap-2
+                    rounded-xl
+                    border border-purple-300/20
+                    bg-purple-300/10
+                    px-6 py-4
+                    text-lg font-bold text-purple-300
+                    transition
+                    hover:bg-purple-300/20
+                  "
                   >
 
                     <Type className="h-5 w-5" />

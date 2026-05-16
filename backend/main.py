@@ -292,6 +292,7 @@ async def preview(
             r"potrace.exe",
             pgm_path,
             "-s",
+            "--flat",
             "-o",
             svg_path
         ])
@@ -309,11 +310,37 @@ import fontforge
 
 font = fontforge.font()
 
-font.fontname = "GenAI"
+# -----------------------------------------
+# Font metadata
+# -----------------------------------------
+
 font.familyname = "GenAI"
-font.fullname = "GenAI"
+
+font.fontname = "GenAI-Regular"
+
+font.fullname = "GenAI Regular"
+
+font.weight = "Regular"
+
+font.os2_weight = 400
+
+font.italicangle = 0
+
+# -----------------------------------------
+# Font metrics
+# -----------------------------------------
+
+font.em = 1000
+
+font.ascent = 800
+
+font.descent = 200
 
 characters = "{characters}"
+
+# -----------------------------------------
+# Build glyphs
+# -----------------------------------------
 
 for char in characters:
 
@@ -325,7 +352,41 @@ for char in characters:
         f"./generated/svg/{{char}}.svg"
     )
 
-    glyph.width = 600
+    # -----------------------------------------
+    # Scale glyph down
+    # -----------------------------------------
+
+    glyph.transform(
+        (0.7, 0, 0, 0.7, 0, 0)
+    )
+
+    # -----------------------------------------
+    # Cleanup
+    # -----------------------------------------
+
+    glyph.removeOverlap()
+
+    glyph.correctDirection()
+
+    glyph.round()
+
+    glyph.autoHint()
+
+    glyph.autoInstr()
+
+    # -----------------------------------------
+    # Metrics
+    # -----------------------------------------
+
+    glyph.left_side_bearing = 50
+
+    glyph.right_side_bearing = 50
+
+    glyph.width = 1000
+
+# -----------------------------------------
+# Generate font
+# -----------------------------------------
 
 font.generate(
     "./generated/fonts/GenAI.ttf"

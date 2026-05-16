@@ -3,7 +3,6 @@ import "./globals.css";
 
 import { Inter, Space_Grotesk } from "next/font/google";
 import { ConfigProvider } from "antd";
-import { Color } from "antd/es/color-picker";
 
 const inter = Inter({
   subsets: ["latin"],
