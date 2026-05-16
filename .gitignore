@@ -58,6 +58,7 @@ backend/.env.local
 # model checkpoints
 backend/.pt
 backend/*.pt
+/backend/generated/*
 
 # ========================================
 # OPTIONAL
@@ -65,3 +66,4 @@ backend/*.pt
 
 .idea
 .vscode
+

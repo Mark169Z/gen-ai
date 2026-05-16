@@ -1,5 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from torchvision.transforms.functional import to_pil_image
 from torchvision import transforms
@@ -15,6 +16,8 @@ from models import Generator
 from typing import List, Annotated
 
 import torch
+import subprocess
+import os
 import io
 import base64
 
@@ -33,10 +36,39 @@ app.add_middleware(
 )
 
 # ---------------------------------------------------
+# Static Fonts
+# ---------------------------------------------------
+
+app.mount(
+    "/generated",
+    StaticFiles(directory="generated"),
+    name="generated"
+)
+
+# ---------------------------------------------------
 # Device
 # ---------------------------------------------------
 
 device = "cpu"
+
+# ---------------------------------------------------
+# Create folders
+# ---------------------------------------------------
+
+os.makedirs(
+    "./generated/png",
+    exist_ok=True
+)
+
+os.makedirs(
+    "./generated/svg",
+    exist_ok=True
+)
+
+os.makedirs(
+    "./generated/fonts",
+    exist_ok=True
+)
 
 # ---------------------------------------------------
 # Load model
@@ -87,15 +119,10 @@ def render_character(char: str):
 
     draw = ImageDraw.Draw(img)
 
-    # IMPORTANT:
-    # use real TTF font
-
     font = ImageFont.truetype(
         "./fonts/arial.ttf",
         96
     )
-
-    # proper bbox positioning
 
     bbox = draw.textbbox(
         (0, 0),
@@ -130,11 +157,11 @@ def health():
     }
 
 # ---------------------------------------------------
-# Transfer
+# Preview + Generate Font
 # ---------------------------------------------------
 
-@app.post("/api/transfer")
-async def transfer(
+@app.post("/api/preview")
+async def preview(
     characters: Annotated[
         str,
         Form()
@@ -146,7 +173,7 @@ async def transfer(
 ):
 
     # -----------------------------------------
-    # Load style images
+    # Load style refs
     # -----------------------------------------
 
     style_tensors = []
@@ -163,20 +190,16 @@ async def transfer(
             tensor
         )
 
-    # (K,1,128,128)
-
     style_stack = torch.stack(
         style_tensors
     )
-
-    # (1,K,1,128,128)
 
     style_stack = style_stack.unsqueeze(0)
 
     outputs = {}
 
     # -----------------------------------------
-    # Generate characters
+    # Generate PNG glyphs
     # -----------------------------------------
 
     for char in characters:
@@ -208,6 +231,20 @@ async def transfer(
 
         image = to_pil_image(fake)
 
+        # -----------------------------------------
+        # Save PNG
+        # -----------------------------------------
+
+        png_path = (
+            f"./generated/png/{char}.png"
+        )
+
+        image.save(png_path)
+
+        # -----------------------------------------
+        # Base64 preview
+        # -----------------------------------------
+
         buffer = io.BytesIO()
 
         image.save(
@@ -223,4 +260,105 @@ async def transfer(
 
         outputs[char] = encoded
 
-    return outputs
+        print(
+            f"{char} PNG GENERATED"
+        )
+
+    # -----------------------------------------
+    # PNG -> SVG
+    # -----------------------------------------
+
+    for char in characters:
+
+        png_path = (
+            f"./generated/png/{char}.png"
+        )
+
+        pgm_path = (
+            f"./generated/png/{char}.pgm"
+        )
+
+        svg_path = (
+            f"./generated/svg/{char}.svg"
+        )
+
+        img = Image.open(
+            png_path
+        ).convert("L")
+
+        img.save(pgm_path)
+
+        subprocess.run([
+            r"potrace.exe",
+            pgm_path,
+            "-s",
+            "-o",
+            svg_path
+        ])
+
+        print(
+            f"{char} SVG GENERATED"
+        )
+
+    # -----------------------------------------
+    # Build FontForge script
+    # -----------------------------------------
+
+    fontforge_script = f'''
+import fontforge
+
+font = fontforge.font()
+
+font.fontname = "GenAI"
+font.familyname = "GenAI"
+font.fullname = "GenAI"
+
+characters = "{characters}"
+
+for char in characters:
+
+    glyph = font.createChar(
+        ord(char)
+    )
+
+    glyph.importOutlines(
+        f"./generated/svg/{{char}}.svg"
+    )
+
+    glyph.width = 600
+
+font.generate(
+    "./generated/fonts/GenAI.ttf"
+)
+
+print("FONT GENERATED")
+'''
+
+    with open(
+        "build_font.py",
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        f.write(fontforge_script)
+
+    # -----------------------------------------
+    # Run FontForge
+    # -----------------------------------------
+
+    subprocess.run([
+        r"ffpython.exe",
+        "build_font.py"
+    ])
+
+    print("TTF GENERATED")
+
+    # -----------------------------------------
+    # Return previews + font url
+    # -----------------------------------------
+
+    return {
+        "images": outputs,
+        "font_url":
+            "http://127.0.0.1:8000/generated/fonts/GenAI.ttf"
+    }

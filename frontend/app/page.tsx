@@ -2,7 +2,10 @@
 
 import React, { useState } from "react";
 
-import { Download } from "lucide-react";
+import {
+  Download,
+  Type,
+} from "lucide-react";
 
 import { InboxOutlined } from "@ant-design/icons";
 
@@ -11,7 +14,11 @@ import type {
   UploadProps,
 } from "antd";
 
-import { Carousel, message, Upload } from "antd";
+import {
+  message,
+  Upload,
+  Carousel,
+} from "antd";
 
 const { Dragger } = Upload;
 
@@ -21,23 +28,74 @@ export default function Home() {
   // Source of truth
   // -----------------------------------------
 
-  const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  const characters =
+    "1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
   const [messageApi, contextHolder] =
     message.useMessage();
 
-  const [fileList, setFileList] = useState<
-    UploadFile[]
-  >([]);
+  const [fileList, setFileList] =
+    useState<UploadFile[]>([]);
 
   const [loading, setLoading] =
     useState(false);
 
-  const [generatedImages, setGeneratedImages] =
+  const [generatedImages,
+    setGeneratedImages] =
     useState<Record<string, string>>({});
 
+  const [previewText,
+    setPreviewText] =
+    useState(
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
+    );
+
+  const [generatedFont,
+    setGeneratedFont] =
+    useState("");
+
+  const [fontUrl,
+    setFontUrl] =
+    useState("");
+
   // -----------------------------------------
-  // Transfer
+  // Fetch timeout helper
+  // -----------------------------------------
+
+  const fetchWithTimeout = async (
+    url: string,
+    options: RequestInit,
+    timeout = 120000
+  ) => {
+
+    const controller =
+      new AbortController();
+
+    const id = setTimeout(
+      () => controller.abort(),
+      timeout
+    );
+
+    try {
+
+      const response =
+        await fetch(url, {
+          ...options,
+          signal: controller.signal,
+        });
+
+      return response;
+
+    } finally {
+
+      clearTimeout(id);
+
+    }
+
+  };
+
+  // -----------------------------------------
+  // Preview API
   // -----------------------------------------
 
   const handleTransfer = async () => {
@@ -49,21 +107,31 @@ export default function Home() {
       );
 
       return;
+
     }
 
     try {
 
       setLoading(true);
 
-      const formData = new FormData();
+      // -----------------------------------------
+      // Reset old state
+      // -----------------------------------------
 
-      // characters
+      setGeneratedImages({});
+
+      setGeneratedFont("");
+
+      setFontUrl("");
+
+      const formData =
+        new FormData();
+
       formData.append(
         "characters",
         characters
       );
 
-      // style refs
       fileList.forEach((file) => {
 
         formData.append(
@@ -73,13 +141,14 @@ export default function Home() {
 
       });
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/transfer`,
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
+      const response =
+        await fetchWithTimeout(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/preview`,
+          {
+            method: "POST",
+            body: formData,
+          }
+        );
 
       if (!response.ok) {
 
@@ -89,27 +158,109 @@ export default function Home() {
 
       }
 
-      const data = await response.json();
+      const data =
+        await response.json();
 
-      setGeneratedImages(data);
+      // -----------------------------------------
+      // Font first
+      // -----------------------------------------
+
+      if (!data.font_url) {
+
+        throw new Error(
+          "No font generated"
+        );
+
+      }
+
+      const font =
+        new FontFace(
+          "GeneratedFont",
+          `url(${data.font_url})`
+        );
+
+      await font.load();
+
+      document.fonts.add(font);
+
+      // -----------------------------------------
+      // Apply font
+      // -----------------------------------------
+
+      setGeneratedFont(
+        "GeneratedFont"
+      );
+
+      setFontUrl(
+        data.font_url
+      );
+
+      // -----------------------------------------
+      // THEN show images
+      // -----------------------------------------
+
+      setGeneratedImages(
+        data.images
+      );
 
       messageApi.success(
-        "Font generated successfully"
+        "Preview generated successfully"
       );
 
     } catch (error) {
 
       console.error(error);
 
-      messageApi.error(
-        "Transfer failed"
-      );
+      if (
+        error instanceof DOMException &&
+        error.name === "AbortError"
+      ) {
+
+        messageApi.error(
+          "Generation timeout (2 mins)"
+        );
+
+      } else {
+
+        messageApi.error(
+          "Transfer failed"
+        );
+
+      }
 
     } finally {
 
       setLoading(false);
 
     }
+
+  };
+
+  // -----------------------------------------
+  // Download TTF
+  // -----------------------------------------
+
+  const handleExportTTF = () => {
+
+    if (!fontUrl) {
+
+      messageApi.error(
+        "No font generated"
+      );
+
+      return;
+
+    }
+
+    const a =
+      document.createElement("a");
+
+    a.href = fontUrl;
+
+    a.download = "GenAI.ttf";
+
+    a.click();
+
   };
 
   // -----------------------------------------
@@ -146,8 +297,8 @@ export default function Home() {
         `${file.name} selected successfully`
       );
 
-      // prevent auto upload
       return false;
+
     },
 
     onRemove(file) {
@@ -162,6 +313,7 @@ export default function Home() {
     },
 
     fileList,
+
   };
 
   return (
@@ -186,6 +338,7 @@ export default function Home() {
               !bg-transparent 
             "
           >
+
             <p className="ant-upload-drag-icon">
               <InboxOutlined className="text-purple-300" />
             </p>
@@ -197,10 +350,11 @@ export default function Home() {
             <p className="ant-upload-hint !text-zinc-400">
               Upload your PNG handwriting samples
             </p>
+
           </Dragger>
 
-          {/* Generate Button */}
-          <div className="mt-6">
+          {/* Generate */}
+          <div className="mt-6 flex gap-4">
 
             <button
               onClick={handleTransfer}
@@ -209,8 +363,8 @@ export default function Home() {
                 !fileList.length
               }
               className="
-                flex w-full items-center justify-center gap-2
-                rounded-lg
+                flex items-center justify-center gap-2
+                rounded-lg w-full
                 border border-purple-300/30
                 bg-purple-300/10
                 px-8 py-4
@@ -221,11 +375,13 @@ export default function Home() {
                 disabled:opacity-40
               "
             >
+
               <Download className="h-5 w-5" />
 
               {loading
                 ? "Generating..."
-                : "Generate Font"}
+                : "Generate Preview"}
+
             </button>
 
           </div>
@@ -234,79 +390,153 @@ export default function Home() {
           {Object.keys(generatedImages)
             .length > 0 && (
 
-            <div className="mt-10 rounded-2xl border border-white/5 bg-black/40 p-6">
+              <div className="mt-10 space-y-6">
 
-              <Carousel arrows infinite={false} draggable={true}>
+                {/* Generated Glyphs */}
+                <div className="rounded-2xl border border-white/5 bg-black/40 p-6">
 
-                {(() => {
-                  const entries = Object.entries(
-                    generatedImages
-                  );
+                  <div className="mb-4 text-sm font-medium text-zinc-400">
+                    Generated Glyphs
+                  </div>
 
-                  const slides = [] as Array<
-                    typeof entries
-                  >;
+                  <Carousel
+                    arrows
+                    draggable
+                    infinite={false}
+                  >
 
-                  for (
-                    let i = 0;
-                    i < entries.length;
-                    i += 8
-                  ) {
-                    slides.push(
-                      entries.slice(i, i + 8)
-                    );
-                  }
+                    {Array.from({
+                      length: Math.ceil(
+                        Object.entries(
+                          generatedImages
+                        ).length / 8
+                      ),
+                    }).map((_, slideIndex) => {
 
-                  return slides.map(
-                    (slideEntries, index) => (
+                      const chunk =
+                        Object.entries(
+                          generatedImages
+                        ).slice(
+                          slideIndex * 8,
+                          slideIndex * 8 + 8
+                        );
 
-                      <div key={`slide-${index}`}>
+                      return (
 
-                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                        <div key={slideIndex}>
 
-                          {slideEntries.map(
-                            ([glyph, image]) => (
+                          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 px-2">
 
-                              <div
-                                key={glyph}
-                                className="
-                                  flex aspect-square items-center justify-center
-                                  overflow-hidden
-                                  rounded-xl border border-white/5
-                                  bg-white/[0.03]
-                                  transition hover:bg-white/10
-                                  select-none
-                                "
-                              >
+                            {chunk.map(
+                              ([glyph, image]) => (
 
-                                <img
-                                  src={`data:image/png;base64,${image}`}
-                                  alt={glyph}
+                                <div
+                                  key={glyph}
                                   className="
-                                    h-full w-full object-contain p-3
-                                    invert brightness-200 contrast-200
-                                    mix-blend-screen
+                                    flex aspect-square items-center justify-center
+                                    overflow-hidden
+                                    rounded-xl border border-white/5
+                                    bg-white/[0.03]
+                                    transition hover:bg-white/10
                                   "
-                                />
+                                >
 
-                              </div>
+                                  <img
+                                    src={`data:image/png;base64,${image}`}
+                                    alt={glyph}
+                                    className="
+                                      h-full w-full object-contain p-3
+                                      invert brightness-200 contrast-200
+                                      mix-blend-screen select-none
+                                    "
+                                  />
 
-                            )
-                          )}
+                                </div>
+
+                              )
+                            )}
+
+                          </div>
 
                         </div>
 
-                      </div>
+                      );
 
-                    )
-                  );
-                })()}
+                    })}
 
-              </Carousel>
+                  </Carousel>
 
-            </div>
+                </div>
 
-          )}
+                {/* Font Preview */}
+                <div className="flex flex-col gap-2 rounded-2xl border border-white/5 bg-black/40 p-6">
+
+                  <div className="text-sm font-medium text-zinc-400">
+                    Font Preview
+                  </div>
+
+                  <div className="flex items-center justify-center">
+
+                    <textarea
+                      value={previewText}
+                      onChange={(e) =>
+                        setPreviewText(
+                          e.target.value
+                        )
+                      }
+                      placeholder="Type something..."
+                      className="
+                        h-[120px]
+                        w-full
+                        rounded-xl
+                        border border-white/10
+                        bg-black/60
+                        p-6
+                        text-9xl
+                        leading-relaxed
+                        text-white
+                        outline-none
+                        transition
+                        placeholder:text-zinc-600
+                        focus:border-purple-300/30
+                      "
+                      style={{
+                        resize: "none",
+                        fontFamily:
+                          generatedFont ||
+                          "sans-serif",
+                      }}
+                    />
+
+                  </div>
+
+                  {/* Export Button */}
+                  <button
+                    onClick={handleExportTTF}
+                    className="
+                      mt-5
+                      flex w-full items-center justify-center gap-2
+                      rounded-xl
+                      border border-purple-300/20
+                      bg-purple-300/10
+                      px-6 py-4
+                      text-lg font-bold text-purple-300
+                      transition
+                      hover:bg-purple-300/20
+                    "
+                  >
+
+                    <Type className="h-5 w-5" />
+
+                    Export .TTF
+
+                  </button>
+
+                </div>
+
+              </div>
+
+            )}
 
         </div>
 
@@ -314,4 +544,5 @@ export default function Home() {
 
     </main>
   );
+
 }
